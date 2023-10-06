@@ -16,12 +16,9 @@ np.set_printoptions(threshold=sys.maxsize)
 args = parse_command_line()
 
 seed = args.seed
-fraction_warmup = args.fraction_warmup
 depth = args.p
-num_nodes = args.num_nodes
 nwarmup = args.nwarmup
 nbayes = args.nbayes
-average_connectivity = args.average_connectivity
 quantum_noise =  args.quantum_noise
 type_of_graph = args.type_of_graph
 lattice_spacing = args.lattice_spacing
@@ -45,5 +42,5 @@ bo = Bayesian_optimization(depth,
                            verbose_
                            )
 bo.print_info()        
-bo.init_training(nwarmup)
+bo.init_training()
 bo.run_optimization()

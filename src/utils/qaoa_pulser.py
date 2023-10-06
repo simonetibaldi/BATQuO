@@ -121,7 +121,6 @@ class qaoa_pulser(object):
         self.noise_config._change_attribute(attr_name = 'runs', new_value= 1)
         self.noise_config._change_attribute(attr_name = 'samples_per_run', new_value= 100)
         self.noise_config._change_attribute(attr_name = 'with_modulation', new_value = True)
-        
         self.noise_info = self.noise_config.__str__()
         
         
@@ -424,6 +423,8 @@ class qaoa_pulser(object):
         seq = Sequence(self.reg, self.Fresnel)
         seq.declare_channel('ch','rydberg_global')
         seq.enable_eom_mode("ch", amp_on=self.omega, detuning_on=0)
+        
+        ### FIRST pulse to rotate the qubits e^{-i pi/2 X}
         seq.add_eom_pulse("ch", duration=500, phase=0.0)
         
         gammas = params[::2] #Hc
@@ -436,12 +437,6 @@ class qaoa_pulser(object):
             
             seq.delay(gamma_i, "ch")
             seq.add_eom_pulse("ch", duration=beta_i, phase=0.0)
-            #mixing_pulse = Pulse.ConstantPulse(beta_i, self.omega, 0, 0) # H_M
-            #hamiltonian_pulse = Pulse.ConstantPulse(gamma_i, 0, self.delta, 0) # H_c
-            
-            #seq.add(mixing_pulse, 'ch0')
-            #seq.add(hamiltonian_pulse, 'ch0')
-            
         seq.measure('ground-rydberg')
         
         #check if sampling_rate is too small by doing rate*total_duration:
@@ -481,6 +476,10 @@ class qaoa_pulser(object):
         
     
     def quantum_loop(self, param):
+        ''' Run the quantum circuits. It creates the circuit, add noise if 
+        needed.
+        '''
+        
         sim = self.create_quantum_circuit(param)
         
         if self.quantum_noise is not None:
@@ -500,9 +499,7 @@ class qaoa_pulser(object):
         #sim.config._change_attribute('runs', 1)
         #sim.config._change_attribute('samples_per_run', 20)
         #sim.config._change_attribute('solver_options', options)
-        
-        
-        
+           
         results = sim.run( 
                         progress_bar = prog_bar
                         )
@@ -525,7 +522,7 @@ class qaoa_pulser(object):
         plt.title('Final sampled state | p = {} | N shots = {}'.format(self.depth, 
                                                                 self.shots))
         plt.show()
-    
+        
     def plot_landscape(self,
                 fixed_params = None,
                 num_grid=DEFAULT_PARAMS["num_grid"],
@@ -566,6 +563,14 @@ class qaoa_pulser(object):
             np.savetxt('../data/raw/graph_Grid_search_{}x{}_params.dat'.format(num_grid, num_grid), Q)
             
     def solution_ratio(self, C):
+        '''Calculates the ratio of the probability of the solution state vs
+        the probability of the second most likely state when the solution state 
+        is the most likely.
+        
+        If the solution state does not have the highest probability it returns 
+        zero
+        '''
+        
         sol_ratio = 0
         sorted_dict = dict(sorted(C.items(), key=lambda item: item[1], reverse=True))
         if len(sorted_dict)>1 :
@@ -603,7 +608,6 @@ class qaoa_pulser(object):
         for configuration in list(sampled_state.keys()):
             hamiltonian_i = self.get_cost_string(configuration) # energy of i-th 
                                                                 # configuration
-
             estimated_variance += sampled_state[configuration] * (sampled_energy - hamiltonian_i)**2
         
         estimated_variance = estimated_variance / (self.shots - 1) # use unbiased variance estimator
@@ -663,6 +667,7 @@ class qaoa_pulser(object):
                   f'Running qaoa with a number of params different from '
                   f'2*depth = {2*self.depth}, number of passed parameters is '
                   f'{len(params)}')
+                  
         #quantum loop returns a dictionary of N_shots measured states and the evolution
         #of qutip state
         results_dict = {}

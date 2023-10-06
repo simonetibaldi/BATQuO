@@ -23,12 +23,33 @@ class Bayesian_optimization():
                  verbose_,
                  *args, 
                  **kwargs):
-             
+        '''Class Bayesian_optimization creates an instance of qaoa and of the
+        gaussian process.
+        
+        init_training() creates the first nwarmup points
+        run_optimization() calls iteratively the GP, proposes a new point, 
+                           evaluate its energy with the QAOA class
+                           
+        PARAMETERS
+        -----------
+        depth: int
+        type_of_graph: choice of graph
+        lattice_spacing: int
+        quantum_noise: to decide between: None, SPAM, dephasing, doppler, all
+        nwarmup: number of initial points (default 10)
+        nbayes: number of optimization steps on top of nwarmup (default 100)
+        kernel_choice: type of kernel for GP (matern, RBF etc..)
+        shots: no. of shots
+        seed: int
+        verbose_: print during training or not 
+        '''
+        
         self.depth = depth
         self.nwarmup = nwarmup
         self.nbayes = nbayes
         self.shots = shots
         self.seed = seed
+        self.quantum_noise = quantum_noise
         angles_bounds = self.define_angles_boundaries(depth)
                 
         ### CREATE QAOA
@@ -42,9 +63,11 @@ class Bayesian_optimization():
         self.type_of_graph = type_of_graph
 
         ### CREATE GP 
+        alpha = 1/np.sqrt(self.shots)
         self.gp = MyGaussianProcessRegressor(depth = depth, 
                                              angles_bounds = angles_bounds,
                                              kernel_choice = kernel_choice,
+                                             alpha = alpha,
                                              seed = seed)
         
         ### Training parameters
@@ -74,6 +97,10 @@ class Bayesian_optimization():
         return np.array(angle_bounds)
     
     def restrict_upper_angles_bounds(self, decrease):
+        '''Called when a sequence of duration >4000ns is proposed to
+            decrease the boundaries
+        '''
+        
         current_bounds = self.gp.angles_bounds
         new_bounds = current_bounds
         new_bounds[:, 1] -= decrease
@@ -101,7 +128,9 @@ class Bayesian_optimization():
         self.file_name = (f'p={self.depth}_'
                          +f'{self.type_of_graph}_'
                          +f'shots_{self.shots}_'
-                         +f'_seed_{self.seed}')
+                         +f'seed_{self.seed}')
+        if self.quantum_noise is not None:
+            self.file_name += f'_{self.quantum_noise}'
                             
         self.folder_name = 'output/' + self.file_name + '/'
         os.makedirs(self.folder_name, exist_ok = True)
@@ -160,9 +189,15 @@ class Bayesian_optimization():
             f.write('FILE.DAT PARAMETERS:\n')
             print(self.data_names, file = f)
                
-    def init_training(self, Nwarmup):
-        X_train, y_train, data_train = self.qaoa.generate_random_points(Nwarmup)
+    def init_training(self):
+        '''Selects self.nwarmup random points and fits the GP to them and starts
+        saving data
+        '''
+        
+        X_train, y_train, data_train = self.qaoa.generate_random_points(self.nwarmup)
         self.gp.fit(X_train, y_train)
+        
+        ### The rest is just saving data ###
         
         df = pd.DataFrame(np.column_stack((X_train, y_train)))
         print('### TRAIN DATA ###')
@@ -174,6 +209,7 @@ class Bayesian_optimization():
         
         kernel_params = np.exp(self.gp.kernel_.theta)
         self.data_ = []
+        self.simplified_data = []
         energy_best = np.max([data_train[i]['energy_sampled'] for i in range(len(X_train))])
         fidelity_best = np.max([data_train[i]['fidelity_sampled'] for i in range(len(X_train))])
         solution_ratio_best = np.max([data_train[i]['solution_ratio'] for i in range(len(X_train))])
@@ -205,20 +241,32 @@ class Bayesian_optimization():
                                 data_train[i]['final_state']
                                 )
                              )
+            self.simplified_data.append([i, 
+                               x, 
+                               1 - y_train[i]/self.qaoa.solution_energy,
+                               data_train[i]['fidelity_sampled'],
+                               data_train[i]['solution_ratio']]
+                               )
         self.data_file_name = self.file_name + '.dat'
-        df = pd.DataFrame(data = self.data_, columns = self.data_names)
-        df.to_pickle(
-                    self.folder_name + self.file_name, 
-                    )
+        
+        
+        df_simplified = pd.DataFrame(data = self.simplified_data, columns = ['ITER', 'POINT', '(E - E0)/E0', 'FID', 'ratio'])
+        df_simplified.to_csv(self.folder_name + self.file_name + '_simplified.dat')
+            
+        #df = pd.DataFrame(data = self.data_, columns = self.data_names)
+        #df.to_pickle(
+        #            self.folder_name + self.file_name, 
+        #            )
                
     def acq_func(self, x):
+        '''Calculate the acquisition function for the BO. Most costly part of
+        the algorithm
+        '''
         
         #check if acq_func is being evaluated on one point (needs reshaping) or many
         if isinstance(x[0], float):
             x = np.reshape(x, (1, -1))
-            
         f_x, sigma_x = self.gp.predict(x, return_std=True) 
-    
         f_prime = self.gp.y_best #current best value
         
         #Ndtr is a particular routing in scipy that computes the CDF in half the time
@@ -233,6 +281,9 @@ class Bayesian_optimization():
         return (-1)*self.acq_func(x)
         
     def bayesian_opt_step(self, init_pos = None):
+        '''Performs the maximization of the acquisition function with the
+        differential evolution algorithm
+        '''
         
         samples = []
         acqfunvalues = []
@@ -268,19 +319,18 @@ class Bayesian_optimization():
             return True
             
     def run_optimization(self):
-    
+        '''Runs the whole optimization loop after initialization.
+        The loop lasts for self.nbayes iterations.
+        Proposed solutions at every step are checked if sum(sequence) <4000ns
+        '''
         fidelity_best = 0
         solution_ratio_best = 0
-        simplified_data = []
         print('Training ...')
+        
         for i in range(self.nbayes):
             start_time = time.time()
             
-            #### BAYES OPT ####
-            #next_point, n_it, avg_sqr_distances, std_pop_energy = self.bayesian_opt_step()
-            #next_point = [int(i) for i in next_point]
-            
-            
+            #### BAYES OPT ####          
             counter = 0
             repeat = True
             while repeat and counter < 5:
@@ -292,13 +342,13 @@ class Bayesian_optimization():
                     counter += 1
                 else:
                     repeat = False
+            bayes_time = time.time() - start_time
+                   
             # check_ = self.check_proposed_point(next_point)
 #             if not check_:
 #                 print(f'Found the same point twice {next_point} by the optimization')
 #                 print('ending optimization')
 #                 break
-            
-            bayes_time = time.time() - start_time
             
             ### QAOA on new point ###
             qaoa_results = self.qaoa.apply_qaoa(next_point)
@@ -309,31 +359,18 @@ class Bayesian_optimization():
                                         qaoa_results['fidelity_sampled']))
             solution_ratio_best = np.max((solution_ratio_best,
                                             qaoa_results['solution_ratio']))
-            
             qaoa_time = time.time() - start_time - bayes_time
             
             
+            ### FIT GP TO THE NEW POINT
             self.gp.fit(next_point, y_next_point)
-            #likelihood_landscape = self.gp.get_log_marginal_likelihood(show = False, 
-            #                                                            save = False)
-            #cov_matrix = self.gp.get_covariance_matrix()
-            #optimization_samples = self.gp.kernel_opt_samples
-            #self.likelihood_landscapes.append(likelihood_landscape)
-            #self.kernel_matrices.append(cov_matrix.tolist())
-            
-            
-            # np.save(self.folder_name + 'likelihoods', 
-#                         self.likelihood_landscapes)  #saved in binary bc its is 3d
-#             np.save(self.folder_name + 'cov_matrices', 
-#                          np.array(self.kernel_matrices)) 
-#             np.save(self.folder_name + 'optimization_kernel', 
-#                          optimization_samples) 
             constant_kernel, corr_length = np.exp(self.gp.kernel_.theta)
-            
-            
+
             kernel_time = time.time() - start_time - qaoa_time - bayes_time
             step_time = time.time() - start_time
             
+            
+            ###SAVING DATA ###
             solution = self.qaoa.solution_energy
             gs_en = self.qaoa.gs_en
             new_data = (
@@ -383,12 +420,12 @@ class Bayesian_optimization():
             
                     
             self.data_.append(new_data)
-            simplified_data.append([i, 
+            self.simplified_data.append([i, 
                                next_point, 
                                1 - y_next_point/self.qaoa.solution_energy,
                                qaoa_results['fidelity_sampled'],
                                qaoa_results['solution_ratio']])
-            df_simplified = pd.DataFrame(data = simplified_data, columns = ['ITER', 'POINT', '(E - E0)/E0', 'FID', 'ratio'])
+            df_simplified = pd.DataFrame(data = self.simplified_data, columns = ['ITER', 'POINT', '(E - E0)/E0', 'FID', 'ratio'])
             df_simplified.to_csv(self.folder_name + self.file_name + '_simplified.dat')
             #df = pd.DataFrame(data = self.data_, columns = self.data_names)
             #df.to_pickle(
@@ -397,8 +434,8 @@ class Bayesian_optimization():
             
         best_x, best_y, where = self.gp.get_best_point()
         self.data_.append(self.data_[where])
-        simplified_data.append(simplified_data[where])
-        df_simplified = pd.DataFrame(data = simplified_data, columns = ['ITER', 'POINT', '(E - E0)/E0', 'FID', 'ratio'])
+        self.simplified_data.append(self.simplified_data[where])
+        df_simplified = pd.DataFrame(data = self.simplified_data, columns = ['ITER', 'POINT', '(E - E0)/E0', 'FID', 'ratio'])
         df_simplified.to_csv(self.folder_name + self.file_name + '_simplified.dat')
         #df = pd.DataFrame(data = self.data_, columns = self.data_names)
         #df.to_pickle(self.folder_name + self.file_name)

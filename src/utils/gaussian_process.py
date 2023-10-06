@@ -24,6 +24,7 @@ class MyGaussianProcessRegressor(GaussianProcessRegressor):
                  depth, 
                  angles_bounds,
                  kernel_choice, 
+                 alpha,
                  seed
                  ):
         '''Initializes gaussian process class
@@ -64,7 +65,7 @@ class MyGaussianProcessRegressor(GaussianProcessRegressor):
                              nu=DEFAULT_PARAMS['nu'])
         if kernel_choice == 'RBF':
             kernel *= RBF()
-        alpha = 1/np.sqrt(DEFAULT_PARAMS['shots'])
+        
         super().__init__(alpha = alpha,
                          kernel = kernel,
                          n_restarts_optimizer =DEFAULT_PARAMS['n_restart_kernel_optimizer'],

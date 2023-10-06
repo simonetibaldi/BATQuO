@@ -2,7 +2,6 @@
 # Set global parameters
 s_eigenvalues = [0, 1]
 DEFAULT_PARAMS = {"penalty": 5,
-                  "shots": 64,
                   "num_grid": 4,
                   "seed" : 22, 
                   "initial_length_scale" : 1,
