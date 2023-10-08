@@ -32,13 +32,14 @@ class qaoa_pulser(object):
                  type_of_graph, 
                  lattice_spacing, 
                  shots,
+                 discard_percentage,
                  seed,  
                  quantum_noise = None):
                 
         self.seed = seed
         self.shots = shots
         self.Fresnel = AnalogDevice
-        
+        self.discard_percentage = discard_percentage
         self.C_6_over_h = self.Fresnel.interaction_coeff
         
         #see notes/info.pdf for this value
@@ -506,6 +507,19 @@ class qaoa_pulser(object):
         
         count_dict = results.sample_final_state(N_samples=self.shots)
         self.bad_atoms = sim._bad_atoms
+        
+        if self.discard_percentage > 0 and len(count_dict)>2:
+            ### order the count_dict (prolly already ordered by Pulser)
+            count_dict = dict(sorted(count_dict.items(), 
+                                key=lambda item: item[1], 
+                                reverse=True))
+            shots_to_erase = int(self.discard_percentage*self.shots)
+            lowest_shots = list(count_dict.values())[-1]
+            if lowest_shots < shots_to_erase:
+                erased_shots = 0
+                while erased_shots < shots_to_erase:
+                    erased_shots += count_dict.popitem()[1]
+        
         return count_dict, results.states
 
     def plot_final_state_distribution(self, C):
@@ -620,7 +634,8 @@ class qaoa_pulser(object):
         '''
         fid = 0
         for sol_key in self.solution.keys():
-            fid += C[sol_key]
+            if sol_key in list(C.keys()):
+                fid += C[sol_key]
         
         fid = fid/self.shots
         

@@ -19,6 +19,7 @@ class Bayesian_optimization():
                  nbayes,
                  kernel_choice,
                  shots,
+                 discard_percentage,
                  seed,
                  verbose_,
                  *args, 
@@ -48,6 +49,7 @@ class Bayesian_optimization():
         self.nwarmup = nwarmup
         self.nbayes = nbayes
         self.shots = shots
+        self.discard_percentage = discard_percentage
         self.seed = seed
         self.quantum_noise = quantum_noise
         angles_bounds = self.define_angles_boundaries(depth)
@@ -58,6 +60,7 @@ class Bayesian_optimization():
                                 type_of_graph, 
                                 lattice_spacing,
                                 shots,
+                                discard_percentage,
                                 seed,
                                 quantum_noise)
         self.type_of_graph = type_of_graph
@@ -131,6 +134,8 @@ class Bayesian_optimization():
                          +f'seed_{self.seed}')
         if self.quantum_noise is not None:
             self.file_name += f'_{self.quantum_noise}'
+        if self.discard_percentage > 0:
+            self.file_name += f'_{self.discard_percentage}'
                             
         self.folder_name = 'output/' + self.file_name + '/'
         os.makedirs(self.folder_name, exist_ok = True)
@@ -162,10 +167,10 @@ class Bayesian_optimization():
                           'time_qaoa', 
                           'time_opt_kernel', 
                           'time_step',
-                          'doppler_detune',
-                          'actual_pulse_parameters',
-                          'bad_atoms',
-                          'final_state'
+                          #'doppler_detune',
+                          #'actual_pulse_parameters',
+                          #'bad_atoms',
+                          #'final_state'
                           ]
         self.data_header = " ".join(["{:>7} ".format(i) for i in self.data_names])
         
@@ -235,10 +240,10 @@ class Bayesian_optimization():
                                 kernel_params[0], 
                                 kernel_params[1], 
                                 0, 0, 0, 0, 0, 0, 0,
-                                data_train[i]['doppler_detune'],
-                                data_train[i]['actual_pulse_parameters'],
-                                data_train[i]['bad_atoms'],
-                                data_train[i]['final_state']
+                                #data_train[i]['doppler_detune'],
+                                #data_train[i]['actual_pulse_parameters'],
+                                #data_train[i]['bad_atoms'],
+                                #data_train[i]['final_state']
                                 )
                              )
             self.simplified_data.append([i, 
@@ -399,10 +404,10 @@ class Bayesian_optimization():
                          qaoa_time, 
                          kernel_time, 
                          step_time,
-                         qaoa_results['doppler_detune'],
-                         qaoa_results['actual_pulse_parameters'],
-                         qaoa_results['bad_atoms'],
-                         qaoa_results['final_state']
+                         #qaoa_results['doppler_detune'],
+                         #qaoa_results['actual_pulse_parameters'],
+                         #qaoa_results['bad_atoms'],
+                         #qaoa_results['final_state']
                          )
                         )
             

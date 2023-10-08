@@ -25,6 +25,7 @@ lattice_spacing = args.lattice_spacing
 verbose_ = args.verbose
 kernel_choice = args.kernel
 shots = args.shots
+discard_percentage = args.discard_percentage
 
 np.random.seed(seed)
 random.seed(seed)
@@ -38,6 +39,7 @@ bo = Bayesian_optimization(depth,
                            nbayes,
                            kernel_choice,
                            shots,
+                           discard_percentage,
                            seed,
                            verbose_
                            )

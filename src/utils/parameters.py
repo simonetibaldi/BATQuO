@@ -100,4 +100,10 @@ def parse_command_line():
                         help="spacing between qubits on the lattice (min 4)"
                         )
                         
+    parser.add_argument('--discard_percentage',
+                        type=float,
+                        default=0,
+                        help="percentage of higher energy measured states to be discarded"
+                        )
+                        
     return parser.parse_args()
