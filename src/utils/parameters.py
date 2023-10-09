@@ -65,11 +65,6 @@ def parse_command_line():
                         help="Directory for saving data"
                         )
                     
-    parser.add_argument('--quantum_noise',
-                        type=str,
-                        default=None,
-                        help="Noise to decide between: None, SPAM, dephasing, doppler, all"
-                        )
     parser.add_argument('--type_of_graph',
                         type=str,
                         default='diamond',
@@ -81,7 +76,13 @@ def parse_command_line():
                         default=2,
                         help="level of verbose \n 0: print nothing \n 1: main training info \n 2: everything"
                         )
-                        
+    parser.add_argument('--load_data',
+                        type=str,
+                        default=None,
+                        help=("Allows to upload any previous optimization data in case of error or to extend the optimization. "
+                        +"The name of the .csv file must be provided. "
+                        +"The optimization restarts from the last loaded point and continues untile --nbayes is reached")
+                        )                   
     parser.add_argument('--kernel',
                         type=str,
                         default='matern',

@@ -19,13 +19,13 @@ seed = args.seed
 depth = args.p
 nwarmup = args.nwarmup
 nbayes = args.nbayes
-quantum_noise =  args.quantum_noise
 type_of_graph = args.type_of_graph
 lattice_spacing = args.lattice_spacing
 verbose_ = args.verbose
 kernel_choice = args.kernel
 shots = args.shots
 discard_percentage = args.discard_percentage
+load_data = args.load_data
 
 np.random.seed(seed)
 random.seed(seed)
@@ -34,7 +34,6 @@ random.seed(seed)
 bo = Bayesian_optimization(depth,
                            type_of_graph,
                            lattice_spacing,
-                           quantum_noise,
                            nwarmup,
                            nbayes,
                            kernel_choice,
@@ -42,7 +41,8 @@ bo = Bayesian_optimization(depth,
                            discard_percentage,
                            seed,
                            verbose_
-                           )
-bo.print_info()        
-bo.init_training()
-bo.run_optimization()
+                           ) 
+bo.save_info() 
+if load_data==None:    
+    bo.init_training()
+bo.run_optimization(load_data)

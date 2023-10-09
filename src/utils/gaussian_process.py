@@ -71,8 +71,6 @@ class MyGaussianProcessRegressor(GaussianProcessRegressor):
                          n_restarts_optimizer =DEFAULT_PARAMS['n_restart_kernel_optimizer'],
                          normalize_y=DEFAULT_PARAMS['n_restart_kernel_optimizer']
                          )
-        print('\n### GAUSSIAN PROCESS ###')
-        print('Initialized kernel: ', self.kernel)
 
         
     def get_info(self):
