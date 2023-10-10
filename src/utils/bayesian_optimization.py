@@ -413,7 +413,6 @@ class Bayesian_optimization():
                          #qaoa_results['final_state']
                          )
                         )
-            print(f'NOISE:{noise_level}')
             with open(self.info_file_name, 'a') as f:
                 f.write(f'iteration: {i +1}/{self.nbayes}  {next_point}'
                         f' (E - E_0)/E_0: {1 - y_next_point/self.qaoa.solution_energy}'
