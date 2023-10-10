@@ -247,7 +247,6 @@ class qaoa_pulser(object):
         results = sim.run()
         
         count_dict = results.sample_final_state(N_samples=self.shots)
-        self.bad_atoms = sim._bad_atoms
         
         if self.discard_percentage > 0 and len(count_dict)>2:
             ### order the count_dict (prolly already ordered by Pulser)

@@ -21,18 +21,15 @@ from pulser.backend import EmulatorConfig
 
 from pulser_pasqal import PasqalCloud
 
-username = ""
-project_id = ""
-password = ""
 
 
-#connection = PasqalCloud(
-#    username=username,  # Your username or email address for the Pasqal Cloud Platform
-#    project_id=project_id,  # The ID of the project associated to your account
-#    password=password,  # The password for your Pasqal Cloud Platform account
-#)
+connection = PasqalCloud(
+   username=username,  # Your username or email address for the Pasqal Cloud Platform
+   project_id=project_id,  # The ID of the project associated to your account
+   password=password,  # The password for your Pasqal Cloud Platform account
+)
 
-QPU_device = connection.fetch_available_devices()['FRESNEL']
+#QPU_device = connection.fetch_available_devices()['FRESNEL']
 device_used = AnalogDevice
 
 from utils.default_params import *
@@ -245,20 +242,20 @@ class qaoa_pulser(object):
         bknd = EmuFreeBackend(seq, connection=connection,)
         #bknd = QPUBackend(seq, connection=connection,)
         
-        return simul
+        return bknd
         
     def quantum_loop(self, param):
         ''' Run the quantum circuits. It creates the circuit, add noise if 
         needed.
         '''
         
-        sim = self.create_quantum_circuit(param)
+        bknd = self.create_quantum_circuit(param)
         
         #self.doppler_detune = sim._doppler_detune
         #self.noisy_pulse_parameters = sim.samples
                     
     
-        results = bknd.run(job_params={"runs":self.shots,"variables":{}})
+        results = bknd.run(job_params=[{"runs":self.shots,"variables":{}}])
         
         count_dict = {x:s for x,s in results[0].bitstring_counts.items()} 
     

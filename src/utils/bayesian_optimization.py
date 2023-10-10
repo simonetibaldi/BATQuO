@@ -1,4 +1,4 @@
-from .qaoa_pulser import *
+from .qaoa_pulser_QPU import *
 from .gaussian_process import *
 import numpy as np
 import time
