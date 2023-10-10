@@ -5,7 +5,7 @@ from scipy.optimize import minimize
 from  utils.default_params import *
 # SKLEARN
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, Matern, ConstantKernel
+from sklearn.gaussian_process.kernels import RBF, Matern, ConstantKernel, WhiteKernel
 from itertools import product
 from sklearn.utils.optimize import _check_optimize_result
 from scipy.stats import norm
@@ -66,6 +66,7 @@ class MyGaussianProcessRegressor(GaussianProcessRegressor):
         if kernel_choice == 'RBF':
             kernel *= RBF()
         
+        kernel += WhiteKernel(noise_level=DEFAULT_PARAMS['initial_noise_level'])
         super().__init__(alpha = alpha,
                          kernel = kernel,
                          n_restarts_optimizer =DEFAULT_PARAMS['n_restart_kernel_optimizer'],

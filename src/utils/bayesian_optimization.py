@@ -64,7 +64,7 @@ class Bayesian_optimization():
                                 )
 
         ### CREATE GP 
-        alpha = 1/np.sqrt(self.shots)
+        alpha = 10**(-6) #1/np.sqrt(self.shots)
         self.gp = MyGaussianProcessRegressor(depth = depth, 
                                              angles_bounds = angles_bounds,
                                              kernel_choice = kernel_choice,
@@ -136,6 +136,7 @@ class Bayesian_optimization():
                           'ratio_solution_best', 
                           'corr_length', 
                           'const_kernel',
+                          'noise_level',
                           'std_energies', 
                           'average_distances', 
                           'n_iterations', 
@@ -181,6 +182,7 @@ class Bayesian_optimization():
                                 solution_ratio_best,
                                 kernel_params[0], 
                                 kernel_params[1], 
+                                kernel_params[2],
                                 0, 0, 0, 0, 0, 0, 0,
                                 data_train[i]['sampled_state']
                                )
@@ -312,7 +314,7 @@ class Bayesian_optimization():
             
             ### FIT GP TO THE NEW POINT
             self.gp.fit(next_point, y_next_point)
-            constant_kernel, corr_length = np.exp(self.gp.kernel_.theta)
+            constant_kernel, corr_length, noise_level = np.exp(self.gp.kernel_.theta)
 
             kernel_time = time.time() - start_time - qaoa_time - bayes_time
             step_time = time.time() - start_time
@@ -333,6 +335,7 @@ class Bayesian_optimization():
                          solution_ratio_best,
                          corr_length, 
                          constant_kernel, 
+                         noise_level,
                          std_pop_energy, 
                          avg_sqr_distances, 
                          n_it, 
@@ -344,13 +347,12 @@ class Bayesian_optimization():
                          ]],
                          columns = self.data_names
                         )
-            
             self.data_= pd.concat([self.data_, new_data], ignore_index=True)
             
             print(f'iteration: {i +1}/{self.nbayes}  {next_point}'
-                    f' (E - E_0)/E_0: {1 - y_next_point/self.qaoa.solution_energy}'
-                    ' en: {}, fid: {}, ratio: {}'.format(y_next_point, qaoa_results['fidelity_sampled'], qaoa_results['solution_ratio'])
-                    )
+                   f' (E - E_0)/E_0: {1 - y_next_point/self.qaoa.solution_energy}'
+                   ' en: {}, fid: {}, ratio: {}'.format(y_next_point, qaoa_results['fidelity_sampled'], qaoa_results['solution_ratio'])
+                   )
                     
             
            # df = pd.DataFrame(data = self.data_, columns = self.data_names)
