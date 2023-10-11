@@ -23,11 +23,11 @@ from pulser_pasqal import PasqalCloud
 
 
 
-connection = PasqalCloud(
-   username=username,  # Your username or email address for the Pasqal Cloud Platform
-   project_id=project_id,  # The ID of the project associated to your account
-   password=password,  # The password for your Pasqal Cloud Platform account
-)
+#connection = PasqalCloud(
+#   username=username,  # Your username or email address for the Pasqal Cloud Platform
+#   project_id=project_id,  # The ID of the project associated to your account
+#   password=password,  # The password for your Pasqal Cloud Platform account
+#)
 
 #QPU_device = connection.fetch_available_devices()['FRESNEL']
 device_used = AnalogDevice
