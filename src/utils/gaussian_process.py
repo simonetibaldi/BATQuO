@@ -55,6 +55,7 @@ class MyGaussianProcessRegressor(GaussianProcessRegressor):
         self.seed = seed
         self.kernel_opt_samples = []
         self.depth = depth
+        self.kernel_choice = kernel_choice
         
         kernel = ConstantKernel(constant_value = DEFAULT_PARAMS['initial_length_scale'],
                                 constant_value_bounds = DEFAULT_PARAMS['constant_bounds']
