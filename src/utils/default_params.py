@@ -32,5 +32,6 @@ Q_DEVICE_PARAMS = {'type_of_lattice': 'triangular',
                    'temperature': 30, #microKelvin
                    'coherence_time': 5000, #ns
                    'omega_over_2pi': 1, #see notes/info.pdf for this value
-                   'omega_off_over_2pi': 0
+                   'omega_off_over_2pi': 0,
+                   'first_pulse_duration':250 #duration in nanosecond of the first pulse
 }
