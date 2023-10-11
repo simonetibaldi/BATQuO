@@ -105,7 +105,7 @@ class Bayesian_optimization():
         current_bounds = self.gp.angles_bounds
         new_bounds = current_bounds
         new_bounds[:, 1] -= decrease
-        if new_bounds[0, 1] < 500:
+        if new_bounds[0, 1] < 300:
             print('Cannot restrict bounds anymore')
             return
         else:
@@ -292,7 +292,7 @@ class Bayesian_optimization():
             while repeat and counter < 5:
                 next_point, n_it, avg_sqr_distances, std_pop_energy = self.bayesian_opt_step()
                 next_point = [int(j) for j in next_point]
-                if sum(next_point)>3500:
+                if sum(next_point)>(4000 - Q_DEVICE_PARAMS['first_pulse_duration']):
                     self.restrict_upper_angles_bounds(decrease = 100)
                     repeat = True
                     counter += 1

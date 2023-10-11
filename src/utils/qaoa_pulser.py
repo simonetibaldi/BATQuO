@@ -207,7 +207,7 @@ class qaoa_pulser(object):
         seq.enable_eom_mode("ch", amp_on=self.omega, detuning_on=0)
         
         ### FIRST pulse to rotate the qubits e^{-i pi/2 X}
-        seq.add_eom_pulse("ch", duration=500, phase=0.0)
+        seq.add_eom_pulse("ch", duration=Q_DEVICE_PARAMS['first_pulse_duration'], phase=0.0)
         
         gammas = params[::2] #Hc
         betas = params[1::2] #Mixing
