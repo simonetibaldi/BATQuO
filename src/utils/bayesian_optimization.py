@@ -293,7 +293,7 @@ class Bayesian_optimization():
                 next_point, n_it, avg_sqr_distances, std_pop_energy = self.bayesian_opt_step()
                 next_point = [int(j) for j in next_point]
                 if sum(next_point)>(4000 - Q_DEVICE_PARAMS['first_pulse_duration']):
-                    self.restrict_upper_angles_bounds(decrease = 100)
+                    self.restrict_upper_angles_bounds(decrease = 50)
                     repeat = True
                     counter += 1
                 else:

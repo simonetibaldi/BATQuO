@@ -196,6 +196,10 @@ class qaoa_pulser(object):
         X = qmc.scale(X, l_bounds, u_bounds).astype(int)
         X = X.tolist()
         for x in X:
+            while (np.sum(x) > (4000 - Q_DEVICE_PARAMS['first_pulse_duration'])):
+                 x = hypercube_sampler.random(1)
+                 x = qmc.scale(x, l_bounds, u_bounds).astype(int)[0]
+                 print('Sequence larger than 4000 ns, proposing new training point')
             qaoa_results = self.apply_qaoa(x)
             Y.append(qaoa_results['energy_sampled'])
             data_train.append(qaoa_results)
