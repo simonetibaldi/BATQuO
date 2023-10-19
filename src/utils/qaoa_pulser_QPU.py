@@ -4,6 +4,11 @@ import matplotlib.pyplot as plt
 from itertools import product
 import random
 import pandas as pd
+import time
+import os
+import pickle
+import json
+from collections import Counter
 
 from pulser.sequence import Sequence
 from pulser_simulation import Simulation, SimConfig
@@ -21,16 +26,19 @@ from pulser.backend import EmulatorConfig
 
 from pulser_pasqal import PasqalCloud
 
+username = "lucas.leclerc@pasqal.com"
+project_id = "a210fe93-2276-4138-9d03-64e1824d1c4e"
+password = "Luc92cloud!"
 
 
-#connection = PasqalCloud(
-#   username=username,  # Your username or email address for the Pasqal Cloud Platform
-#   project_id=project_id,  # The ID of the project associated to your account
-#   password=password,  # The password for your Pasqal Cloud Platform account
-#)
+connection = PasqalCloud(
+   username=username,  # Your username or email address for the Pasqal Cloud Platform
+   project_id=project_id,  # The ID of the project associated to your account
+   password=password,  # The password for your Pasqal Cloud Platform account
+)
 
-#QPU_device = connection.fetch_available_devices()['FRESNEL']
 device_used = AnalogDevice
+#device_used = connection.fetch_available_devices()['FRESNEL']
 
 from utils.default_params import *
 from qutip import *
@@ -55,7 +63,7 @@ class qaoa_pulser(object):
                 
         self.seed = seed
         self.shots = shots
-        self.Fresnel = AnalogDevice
+        self.Fresnel = device_used
         self.discard_percentage = discard_percentage
         self.C_6_over_h = self.Fresnel.interaction_coeff
         self.omega = Q_DEVICE_PARAMS['omega_over_2pi'] * 2 * np.pi 
@@ -71,6 +79,7 @@ class qaoa_pulser(object):
         self.G, self.qubits_dict = self.generate_graph(type_of_graph)
         self.solution, self.solution_energy = self.classical_solution()
         self.Nqubit = len(self.G)
+        self.type_of_graph = type_of_graph
         
              
     def Omega_from_b(self, omega, delta_i, omega_r):
@@ -127,6 +136,7 @@ class qaoa_pulser(object):
             self.trap_list = [38, 29, 20, 34, 25, 30, 35, 26, 40, 31, 22]
         
         self.reg = trap_layout.define_register(*self.trap_list)
+        self.reg.draw()
         G = nx.Graph()
         edges=[]
         distances = []
@@ -248,30 +258,73 @@ class qaoa_pulser(object):
         ''' Run the quantum circuits. It creates the circuit, add noise if 
         needed.
         '''
+        def truncate_randomly_bitstrings(bitstrings,n_shots):
+            S = sum(bitstrings.values())
+            list_samples = random.choices(list(bitstrings.keys()), weights=np.array(list(bitstrings.values()))/S, k=n_shots)
+            return dict(Counter(list_samples))
         
-        bknd = self.create_quantum_circuit(param)
+        ### LOAD EXISTING X0
+        folder_name = "p={}_".format(self.depth)+self.type_of_graph+"_shots_{}_seed_{}".format(self.shots,self.seed)
+        if os.path.exists("output/"+folder_name+"_opt_history.json"):
+            with open("output/"+folder_name+"_opt_history.json", 'rb') as fp:
+                data = json.load(fp)
+        else: 
+            data = {"x0":[],"id":[],"bitstrings":[]}
+            
+        if param not in data["x0"]:
+                
+            bknd = self.create_quantum_circuit(param)
+
+            #self.doppler_detune = sim._doppler_detune
+            #self.noisy_pulse_parameters = sim.samples
+
+
+            results = bknd.run(job_params=[{"runs":int(1.33*self.shots),"variables":{}}])
+
+            while results.get_status().name != "DONE":
+                time.sleep(2)
+
+            count_dict = {x:s for x,s in results[0].bitstring_counts.items()} 
+            count_dict = truncate_randomly_bitstrings(count_dict,self.shots)
+            
+            data["x0"].append(param)
+            data["id"].append(results._submission_id)
+            data["bitstrings"].append(count_dict)
+            with open("output/"+folder_name+"_opt_history.json", 'w') as fp:
+                json.dump(data, fp)
+        ### SAVE BITSTRINGS
         
-        #self.doppler_detune = sim._doppler_detune
-        #self.noisy_pulse_parameters = sim.samples
-                    
-    
-        results = bknd.run(job_params=[{"runs":self.shots,"variables":{}}])
-        
-        count_dict = {x:s for x,s in results[0].bitstring_counts.items()} 
-    
+        else:
+            data["x0"].append(param)
+            data["id"].append(data["id"][np.where(param in data["x0"])[0][0]])
+            count_dict = data["bitstrings"][np.where(param in data["x0"])[0][0]]
+            data["bitstrings"].append(count_dict)
+            
         #self.bad_atoms = sim._bad_atoms
-        
         if self.discard_percentage > 0 and len(count_dict)>2:
             ### order the count_dict (prolly already ordered by Pulser)
             count_dict = dict(sorted(count_dict.items(), 
-                                key=lambda item: item[1], 
-                                reverse=True))
+                                key=lambda item: self.get_cost_string(item[0]), 
+                                reverse=False))
             shots_to_erase = int(self.discard_percentage*self.shots)
-            lowest_shots = list(count_dict.values())[-1]
-            if lowest_shots < shots_to_erase:
-                erased_shots = 0
-                while erased_shots < shots_to_erase:
-                    erased_shots += count_dict.popitem()[1]
+            while 0 < shots_to_erase:
+                if list(count_dict.values())[-1] < shots_to_erase:
+                    shots_to_erase += - count_dict.popitem()[1]
+                else:
+                    count_dict[list(count_dict.keys())[-1]] += - shots_to_erase
+                    shots_to_erase = 0
+        
+        #if self.discard_percentage > 0 and len(count_dict)>2:
+            ### order the count_dict (prolly already ordered by Pulser)
+        #    count_dict = dict(sorted(count_dict.items(), 
+        #                        key=lambda item: item[1], 
+        #                        reverse=True))
+        #    shots_to_erase = int(self.discard_percentage*self.shots)
+        #    lowest_shots = list(count_dict.values())[-1]
+        #    if lowest_shots < shots_to_erase:
+        #        erased_shots = 0
+        #        while erased_shots < shots_to_erase:
+        #            erased_shots += count_dict.popitem()[1]
         
         return count_dict
             
