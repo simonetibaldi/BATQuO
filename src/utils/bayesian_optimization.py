@@ -80,19 +80,19 @@ class Bayesian_optimization():
     def define_angles_boundaries(self, depth):
         if depth == 1:
             angle_bounds = [
-                            [200, 800] for _ in range(depth*2)
+                            [100, 800] for _ in range(depth*2)
                             ]
         elif depth == 2:
             angle_bounds = [
-                            [200, 800] for _ in range(depth*2)
+                            [100, 800] for _ in range(depth*2)
                             ]
         elif depth == 3:
             angle_bounds = [
-                            [200, 650] for _ in range(depth*2)
+                            [100, 650] for _ in range(depth*2)
                             ]
         else:
             angle_bounds = [
-                            [200, 500] for _ in range(depth*2)
+                            [100, 500] for _ in range(depth*2)
                             ]
             
         return np.array(angle_bounds)
