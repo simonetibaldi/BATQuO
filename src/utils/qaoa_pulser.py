@@ -314,6 +314,7 @@ class qaoa_pulser(object):
         
     def get_cost_dict(self, counter):
         total_cost = 0
+        print(counter)
         for key in counter.keys():
             cost = self.get_cost_string(key)
             total_cost += cost * counter[key]
@@ -407,13 +408,22 @@ class qaoa_pulser(object):
         '''
         X , Y , data_train = [], [], []
         
-        hypercube_sampler = qmc.LatinHypercube(d=self.depth*2, seed = self.seed)
-        X =  hypercube_sampler.random(N_points)
-        l_bounds = self.angles_bounds[:,0]
-        u_bounds = self.angles_bounds[:,1]
-        X = qmc.scale(X, l_bounds, u_bounds).astype(int)
-        X = X.tolist()
-        for x in X:
+        repeat = True
+        accepted_X = []
+        while repeat:
+            hypercube_sampler = qmc.LatinHypercube(d=self.depth*2, seed = self.seed)
+            X =  hypercube_sampler.random(N_points)
+            l_bounds = self.angles_bounds[:,0]
+            u_bounds = self.angles_bounds[:,1]
+            X = qmc.scale(X, l_bounds, u_bounds).astype(int)
+            X = X.tolist()
+            for x in X:
+                if sum(x)<(4000 - Q_DEVICE_PARAMS['first_pulse_duration']): 
+                    accepted_X.append(x)
+                    if len(accepted_X) >= N_points:
+                        repeat = False
+                        break
+        for x in accepted_X:
             qaoa_results = self.apply_qaoa(x)
             Y.append(qaoa_results['energy_sampled'])
             data_train.append(qaoa_results)
@@ -518,6 +528,8 @@ class qaoa_pulser(object):
             if lowest_shots < shots_to_erase:
                 erased_shots = 0
                 while erased_shots < shots_to_erase:
+                    if len(count_dict) == 1:
+                        break
                     erased_shots += count_dict.popitem()[1]
         
         return count_dict, results.states

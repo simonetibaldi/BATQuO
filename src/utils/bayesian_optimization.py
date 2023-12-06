@@ -3,9 +3,13 @@ from .gaussian_process import *
 import numpy as np
 import time
 import datetime
+from scipy import optimize
 from ._differentialevolution import DifferentialEvolutionSolver
+from ._differentialevolution import differential_evolution
 import pandas as pd
 import os
+import warnings
+warnings.filterwarnings("ignore", message="delta_grad == 0.0. Check if the approximated function is linear.")
 
 
 class Bayesian_optimization():
@@ -82,19 +86,19 @@ class Bayesian_optimization():
     def define_angles_boundaries(self, depth):
         if depth == 1:
             angle_bounds = [
-                            [200, 800] for _ in range(depth*2)
+                            [100, 800] for _ in range(depth*2)
                             ]
         elif depth == 2:
             angle_bounds = [
-                            [200, 800] for _ in range(depth*2)
+                            [100, 800] for _ in range(depth*2)
                             ]
         elif depth == 3:
             angle_bounds = [
-                            [200, 650] for _ in range(depth*2)
+                            [100, 650] for _ in range(depth*2)
                             ]
         else:
             angle_bounds = [
-                            [200, 500] for _ in range(depth*2)
+                            [100, 200] for _ in range(depth*2)
                             ]
             
         return np.array(angle_bounds)
@@ -259,7 +263,7 @@ class Bayesian_optimization():
         
         df_simplified = pd.DataFrame(data = self.simplified_data, columns = ['ITER', 'POINT', '(E - E0)/E0', 'FID', 'ratio'])
         df_simplified.to_csv(self.folder_name + self.file_name + '_simplified.dat')
-            
+        
         #df = pd.DataFrame(data = self.data_, columns = self.data_names)
         #df.to_pickle(
         #            self.folder_name + self.file_name, 
@@ -301,21 +305,36 @@ class Bayesian_optimization():
             acqfunvalues.append(self.acq_func(Xi, 1)[0])
 
         repeat = True
+        
+        def constr_fun(x):
+            
+            return sum(x)
+        
+        # No lower limit on constr_fun
+        lb = 100*self.depth*2
+        
+        # Upper limit on constr_fun
+        ub = 4000 - Q_DEVICE_PARAMS['first_pulse_duration']
+        
+        constr = optimize.LinearConstraint([[1]*self.depth*2], lb, ub)
+
         with DifferentialEvolutionSolver(self.acq_func_maximize,
-                                         bounds = [(0,1), (0,1)]*self.depth,
+                                         #bounds = self.gp.angles_bounds,
+                                         bounds =[(100,4000), (100,4000)]*self.depth,
                                          callback = None,
                                          maxiter = 100*self.depth,
                                          popsize = 15,
                                          tol = .001,
                                          dist_tol = DEFAULT_PARAMS['distance_conv_tol'],
-                                         seed = DEFAULT_PARAMS['seed']
+                                         seed = DEFAULT_PARAMS['seed'],
+                                         constraints=constr
                                          ) as diff_evol:
             results,average_norm_distance_vectors, std_population_energy, conv_flag = diff_evol.solve()
             next_point = results.x
-        
-            next_point = self.gp.scale_up(next_point)
+          
+            #next_point = self.gp.scale_up(next_point)
                 
-        return next_point, results.nit, average_norm_distance_vectors, std_population_energy
+        return next_point, results.nit, 0,0
 
     def check_proposed_point(self, point):
         X_ = self.gp.get_X()
@@ -325,6 +344,26 @@ class Bayesian_optimization():
         else:
             return True
             
+    def stopping_criteria(self, df):
+        last_point = np.array(df['POINT'])[-1]
+        points = np.array((df['POINT']))
+        
+        points = np.array(df['POINT'])
+        how_many_equal = [p == last_point for p in points]
+        repeated_more_than_five = sum(how_many_equal) >= 5
+        
+        corr_lengths = np.array(df['corr_length'][-5:])
+        zero_corr_length  = np.prod((corr_lengths < 0.1))
+        
+        if repeated_more_than_five >= 15:
+            return True
+            
+        if zero_corr_length and repeated_more_than_five:
+            return True
+        else:
+            return False
+        
+        
     def run_optimization(self):
         '''Runs the whole optimization loop after initialization.
         The loop lasts for self.nbayes iterations.
@@ -342,7 +381,7 @@ class Bayesian_optimization():
             repeat = True
             while repeat and counter < 5:
                 next_point, n_it, avg_sqr_distances, std_pop_energy = self.bayesian_opt_step()
-                next_point = [int(i) for i in next_point]
+                next_point = [int(4*np.round(i/4)) for i in next_point]
                 if sum(next_point)>(4000 - Q_DEVICE_PARAMS['first_pulse_duration']):
                     self.restrict_upper_angles_bounds(decrease = 100)
                     repeat = True
@@ -372,7 +411,7 @@ class Bayesian_optimization():
             ### FIT GP TO THE NEW POINT
             self.gp.fit(next_point, y_next_point)
             constant_kernel, corr_length, noise_level = np.exp(self.gp.kernel_.theta)
-
+            
             kernel_time = time.time() - start_time - qaoa_time - bayes_time
             step_time = time.time() - start_time
             
@@ -421,8 +460,9 @@ class Bayesian_optimization():
                         
             print(f'iteration: {i +1}/{self.nbayes}  {next_point}'
                     f' (E - E_0)/E_0: {1 - y_next_point/self.qaoa.solution_energy}'
-                    ' en: {}, fid: {}, ratio: {}'.format(y_next_point, qaoa_results['fidelity_sampled'], qaoa_results['solution_ratio'])
-                    )
+                    ' en: {}, fid: {}, ratio: {}'.format(y_next_point, qaoa_results['fidelity_sampled'], qaoa_results['solution_ratio'],
+                    ))
+            print(f'corr_length: {corr_length}')
                     
             
                     
@@ -431,9 +471,15 @@ class Bayesian_optimization():
                                next_point, 
                                1 - y_next_point/self.qaoa.solution_energy,
                                qaoa_results['fidelity_sampled'],
-                               qaoa_results['solution_ratio']])
-            df_simplified = pd.DataFrame(data = self.simplified_data, columns = ['ITER', 'POINT', '(E - E0)/E0', 'FID', 'ratio'])
+                               qaoa_results['solution_ratio'],
+                               corr_length])
+            df_simplified = pd.DataFrame(data = self.simplified_data, columns = ['ITER', 'POINT', '(E - E0)/E0', 'FID', 'ratio', 'corr_length'])
             df_simplified.to_csv(self.folder_name + self.file_name + '_simplified.dat')
+            
+            stop_ = self.stopping_criteria(df_simplified)
+            
+            if stop_:
+                break
             #df = pd.DataFrame(data = self.data_, columns = self.data_names)
             #df.to_pickle(
             #            self.folder_name + self.file_name,
