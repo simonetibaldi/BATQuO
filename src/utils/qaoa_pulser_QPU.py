@@ -38,7 +38,7 @@ connection = PasqalCloud(
 )
 
 device_used = AnalogDevice
-#device_used = connection.fetch_available_devices()['FRESNEL']
+device_used = connection.fetch_available_devices()['FRESNEL']
 
 from utils.default_params import *
 from qutip import *
@@ -251,6 +251,7 @@ class qaoa_pulser(object):
             
             seq.delay(gamma_i, "ch")
             seq.add_eom_pulse("ch", duration=beta_i, phase=0.0)
+        seq.disable_eom_mode("ch")
         seq.measure('ground-rydberg')
         
         bknd = EmuFreeBackend(seq, connection=connection,)
@@ -283,7 +284,7 @@ class qaoa_pulser(object):
             #self.noisy_pulse_parameters = sim.samples
 
 
-            results = bknd.run(job_params=[{"runs":int(1.33*self.shots),"variables":{}}])
+            results = bknd.run(job_params=[{"runs":int(1.5*self.shots),"variables":{}}])
 
             while results.get_status().name != "DONE":
                 time.sleep(2)
