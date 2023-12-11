@@ -3,10 +3,13 @@ from .gaussian_process import *
 import numpy as np
 import time
 import datetime
+from scipy import optimize
 from ._differentialevolution import DifferentialEvolutionSolver
 import pandas as pd
 import os
 import ast
+import warnings
+warnings.filterwarnings("ignore", message="delta_grad == 0.0. Check if the approximated function is linear.")
 
 
 class Bayesian_optimization():
@@ -92,7 +95,7 @@ class Bayesian_optimization():
                             ]
         else:
             angle_bounds = [
-                            [100, 500] for _ in range(depth*2)
+                            [100, 200] for _ in range(depth*2)
                             ]
             
         return np.array(angle_bounds)
@@ -225,21 +228,36 @@ class Bayesian_optimization():
         def callbackF(Xi, convergence):
             samples.append(Xi.tolist())
             acqfunvalues.append(self.acq_func(Xi, 1)[0])
+        
+        def constr_fun(x):
+            
+            return sum(x)
+        
+        # No lower limit on constr_fun
+        lb = 100*self.depth*2
+        
+        # Upper limit on constr_fun
+        ub = 4000 - Q_DEVICE_PARAMS['first_pulse_duration']
+        
+        constr = optimize.LinearConstraint([[1]*self.depth*2], lb, ub)
 
         repeat = True
+        
+        
         with DifferentialEvolutionSolver(self.acq_func_maximize,
-                                         bounds = [(0,1), (0,1)]*self.depth,
+                                         bounds =[(100,4000), (100,4000)]*self.depth, ##this bounds are ignored but need to be passed to the optimizer
                                          callback = None,
                                          maxiter = 100*self.depth,
                                          popsize = 15,
                                          tol = .001,
                                          dist_tol = DEFAULT_PARAMS['distance_conv_tol'],
+                                         constraints=constr,
                                          seed = DEFAULT_PARAMS['seed']
                                          ) as diff_evol:
             results,average_norm_distance_vectors, std_population_energy, conv_flag = diff_evol.solve()
             next_point = results.x
         
-            next_point = self.gp.scale_up(next_point)
+            #next_point = self.gp.scale_up(next_point)
                 
         return next_point, results.nit, average_norm_distance_vectors, std_population_energy
 
@@ -250,7 +268,24 @@ class Bayesian_optimization():
             return False
         else:
             return True
+    def stopping_criteria(self, df):
+        last_point = np.array(df['POINT'])[-1]
+        points = np.array((df['POINT']))
+        
+        points = np.array(df['POINT'])
+        how_many_equal = [p == last_point for p in points]
+        repeated_more_than_five = sum(how_many_equal) >= 5
+        
+        corr_lengths = np.array(df['corr_length'][-5:])
+        zero_corr_length  = np.prod((corr_lengths < 0.1))
+        
+        if repeated_more_than_five >= 15:
+            return True
             
+        if zero_corr_length and repeated_more_than_five:
+            return True
+        else:
+            return False
     def run_optimization(self, load_data = None):
         '''Runs the whole optimization loop after initialization.
         The loop lasts for self.nbayes iterations.
@@ -291,7 +326,7 @@ class Bayesian_optimization():
             repeat = True
             while repeat and counter < 5:
                 next_point, n_it, avg_sqr_distances, std_pop_energy = self.bayesian_opt_step()
-                next_point = [int(j) for j in next_point]
+                next_point = [int(4*np.round(i/4)) for i in next_point]
                 if sum(next_point)>(4000 - Q_DEVICE_PARAMS['first_pulse_duration']):
                     self.restrict_upper_angles_bounds(decrease = 50)
                     repeat = True

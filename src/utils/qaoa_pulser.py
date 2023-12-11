@@ -203,6 +203,8 @@ class qaoa_pulser(object):
             qaoa_results = self.apply_qaoa(x)
             Y.append(qaoa_results['energy_sampled'])
             data_train.append(qaoa_results)
+        
+
         return X, Y, data_train
 
     def create_quantum_circuit(self, params):

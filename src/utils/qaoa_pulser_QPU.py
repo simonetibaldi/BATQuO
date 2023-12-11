@@ -217,20 +217,37 @@ class qaoa_pulser(object):
         '''
         X , Y , data_train = [], [], []
         
-        hypercube_sampler = qmc.LatinHypercube(d=self.depth*2, seed = self.seed)
-        X =  hypercube_sampler.random(N_points)
-        l_bounds = self.angles_bounds[:,0]
-        u_bounds = self.angles_bounds[:,1]
-        X = qmc.scale(X, l_bounds, u_bounds).astype(int)
-        X = X.tolist()
-        for x in X:
-            while (np.sum(x) > 3750):
-                 x = hypercube_sampler.random(1)
-                 x = qmc.scale(x, l_bounds, u_bounds).astype(int)[0]
-                 print('Sequence larger than 4000 ns, proposing new training point')
+       #  hypercube_sampler = qmc.LatinHypercube(d=self.depth*2, seed = self.seed)
+#         X =  hypercube_sampler.random(N_points)
+#         l_bounds = self.angles_bounds[:,0]
+#         u_bounds = self.angles_bounds[:,1]
+#         X = qmc.scale(X, l_bounds, u_bounds).astype(int)
+#         X = X.tolist()
+#         for x in X:
+#             while (np.sum(x) > 3750):
+#                  x = hypercube_sampler.random(1)
+#                  x = qmc.scale(x, l_bounds, u_bounds).astype(int)[0]
+#                  print('Sequence larger than 4000 ns, proposing new training point')
+        repeat = True
+        accepted_X = []
+        while repeat:
+            hypercube_sampler = qmc.LatinHypercube(d=self.depth*2, seed = self.seed)
+            X =  hypercube_sampler.random(N_points)
+            l_bounds = self.angles_bounds[:,0]
+            u_bounds = self.angles_bounds[:,1]
+            X = qmc.scale(X, l_bounds, u_bounds).astype(int)
+            X = X.tolist()
+            for x in X:
+                if sum(x)<(4000 - Q_DEVICE_PARAMS['first_pulse_duration']): 
+                    accepted_X.append(x)
+                    if len(accepted_X) >= N_points:
+                        repeat = False
+                        break
+        for x in accepted_X:
             qaoa_results = self.apply_qaoa(x)
             Y.append(qaoa_results['energy_sampled'])
             data_train.append(qaoa_results)
+            
         return X, Y, data_train
 
     def create_quantum_circuit(self, params):
