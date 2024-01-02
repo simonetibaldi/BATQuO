@@ -230,7 +230,6 @@ class Bayesian_optimization():
         
         kernel_params = np.exp(self.gp.kernel_.theta)
         self.data_ = []
-        self.simplified_data = []
         energy_best = np.max([data_train[i]['energy_sampled'] for i in range(len(X_train))])
         fidelity_best = np.max([data_train[i]['fidelity_sampled'] for i in range(len(X_train))])
         solution_ratio_best = np.max([data_train[i]['solution_ratio'] for i in range(len(X_train))])
@@ -263,18 +262,8 @@ class Bayesian_optimization():
                                 data_train[i]['sampled_state']
                                 )
                              )
-            self.simplified_data.append([i, 
-                               x, 
-                               1 - y_train[i]/self.qaoa.solution_energy,
-                               data_train[i]['fidelity_sampled'],
-                               data_train[i]['solution_ratio']]
-                               )
         self.data_file_name = self.file_name + '.dat'
         
-        
-        # df_simplified = pd.DataFrame(data = self.simplified_data, columns = ['ITER', 'POINT', '(E - E0)/E0', 'FID', 'ratio'])
-#         df_simplified.to_csv(self.folder_name + self.file_name + '_simplified.dat')
-#             
         df = pd.DataFrame(data = self.data_, columns = self.data_names)
         df.to_csv(
                    self.folder_name + self.file_name + '.dat'
@@ -456,13 +445,6 @@ class Bayesian_optimization():
                              ' fid: {}\n'.format(qaoa_results['fidelity_sampled']))
                             
             self.data_.append(new_data)
-            self.simplified_data.append([i, 
-                               next_point, 
-                               1 - y_next_point/self.qaoa.solution_energy,
-                               qaoa_results['fidelity_sampled'],
-                               qaoa_results['solution_ratio']])
-            # df_simplified = pd.DataFrame(data = self.simplified_data, columns = ['ITER', 'POINT', '(E - E0)/E0', 'FID', 'ratio'])
-#             df_simplified.to_csv(self.folder_name + self.file_name + '_simplified.dat')
             df = pd.DataFrame(data = self.data_, columns = self.data_names)
             df.to_csv(
                        self.folder_name + self.file_name + '.dat',
@@ -470,9 +452,6 @@ class Bayesian_optimization():
             
         best_x, best_y, where = self.gp.get_best_point()
         self.data_.append(self.data_[where])
-        self.simplified_data.append(self.simplified_data[where])
-        df_simplified = pd.DataFrame(data = self.simplified_data, columns = ['ITER', 'POINT', '(E - E0)/E0', 'FID', 'ratio'])
-        df_simplified.to_csv(self.folder_name + self.file_name + '_simplified.dat')
         #df = pd.DataFrame(data = self.data_, columns = self.data_names)
         #df.to_pickle(self.folder_name + self.file_name)
         print('Best point: ' , self.data_[where])
