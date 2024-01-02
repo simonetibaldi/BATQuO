@@ -4,8 +4,8 @@ s_eigenvalues = [0, 1]
 DEFAULT_PARAMS = {"penalty": 5,
                   "num_grid": 4,
                   "seed" : 22, 
-                  "initial_length_scale" : 1,
-                  "length_scale_bounds" : (0.01, 100),
+                  "initial_length_scale" : 20,
+                  "length_scale_bounds" : (1, 1000),
                   "initial_sigma":1,
                   "constant_bounds":(0.01, 100),
                   "initial_noise_level":0.5,
@@ -27,7 +27,7 @@ Q_DEVICE_PARAMS = {'type_of_lattice': 'triangular',
                    'laser_waist': 148, #micrometers
                    'rising_time': 50, #ns
                    'eta': 0.005, #state prep error for every qubit
-                   'epsilon': 0.03, #false positive
+                   'epsilon': 0.05, #false positive
                    'epsilon_prime': 0.08, #false negative
                    'temperature': 30, #microKelvin
                    'coherence_time': 5000, #ns

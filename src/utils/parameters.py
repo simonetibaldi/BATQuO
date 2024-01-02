@@ -70,16 +70,16 @@ def parse_command_line():
                         default=None,
                         help="Noise to decide between: None, SPAM, dephasing, doppler, all"
                         )
-    parser.add_argument('--type_of_graph',
-                        type=str,
-                        default='diamond',
-                        help="types of graph: diamond, butterfly, nine_qubit, grid, twelve"
+    parser.add_argument('--n_qubits',
+                        type=int,
+                        default=6,
+                        help="number of qubits in the graph, 6 and 11 are diamond/butterfly"
                         )
                         
     parser.add_argument('--verbose',
                         type=int,
-                        default=2,
-                        help="level of verbose \n 0: print nothing \n 1: main training info \n 2: everything"
+                        default=1,
+                        help="level of verbose \n 0: print nothing \n 1: main training info \n 2: also saves info_file.txt"
                         )
                         
     parser.add_argument('--kernel',

@@ -6,13 +6,16 @@ import datetime
 from ._differentialevolution import DifferentialEvolutionSolver
 import pandas as pd
 import os
+from scipy import optimize
+import warnings
+warnings.filterwarnings("ignore", message="delta_grad == 0.0. Check if the approximated function is linear.")
 
 
 class Bayesian_optimization():
 
     def __init__(self,
                  depth,
-                 type_of_graph,
+                 n_qubits,
                  lattice_spacing,
                  quantum_noise,
                  nwarmup,
@@ -34,7 +37,7 @@ class Bayesian_optimization():
         PARAMETERS
         -----------
         depth: int
-        type_of_graph: choice of graph
+        n_qubits: choice of graph
         lattice_spacing: int
         quantum_noise: to decide between: None, SPAM, dephasing, doppler, all
         nwarmup: number of initial points (default 10)
@@ -52,18 +55,20 @@ class Bayesian_optimization():
         self.discard_percentage = discard_percentage
         self.seed = seed
         self.quantum_noise = quantum_noise
+        self.verbose_ = verbose_
         angles_bounds = self.define_angles_boundaries(depth)
+        
                 
         ### CREATE QAOA
         self.qaoa = qaoa_pulser(depth, 
                                 angles_bounds,
-                                type_of_graph, 
+                                n_qubits, 
                                 lattice_spacing,
                                 shots,
                                 discard_percentage,
                                 seed,
                                 quantum_noise)
-        self.type_of_graph = type_of_graph
+        self.n_qubits = n_qubits
 
         ### CREATE GP 
         alpha = 1/np.sqrt(self.shots)
@@ -82,19 +87,27 @@ class Bayesian_optimization():
     def define_angles_boundaries(self, depth):
         if depth == 1:
             angle_bounds = [
-                            [200, 800] for _ in range(depth*2)
+                            [100, 800] for _ in range(depth*2)
                             ]
         elif depth == 2:
             angle_bounds = [
-                            [200, 800] for _ in range(depth*2)
+                            [100, 800] for _ in range(depth*2)
                             ]
         elif depth == 3:
             angle_bounds = [
-                            [200, 650] for _ in range(depth*2)
+                            [100, 650] for _ in range(depth*2)
+                            ]
+        elif depth == 4:
+            angle_bounds = [
+                            [100, 450] for _ in range(depth*2)
+                            ]
+        elif depth == 5:
+            angle_bounds = [
+                            [100, 370] for _ in range(depth*2)
                             ]
         else:
             angle_bounds = [
-                            [200, 500] for _ in range(depth*2)
+                            [100, 270] for _ in range(depth*2)
                             ]
             
         return np.array(angle_bounds)
@@ -129,15 +142,17 @@ class Bayesian_optimization():
            
     def print_info(self):
         self.file_name = (f'p={self.depth}_'
-                         +f'{self.type_of_graph}_'
-                         +f'shots_{self.shots}_'
-                         +f'seed_{self.seed}')
+                         +f'n={self.n_qubits}_'
+                         +f'sh={self.shots}_'
+                         +f'wu={self.nwarmup}_'
+                         +f'st={self.nbayes}_'
+                         +f'{self.seed}')
         if self.quantum_noise is not None:
             self.file_name += f'_{self.quantum_noise}'
         if self.discard_percentage > 0:
             self.file_name += f'_{self.discard_percentage}'
                             
-        self.folder_name = 'output/' + self.file_name + '/'
+        self.folder_name = 'output/' + f'N={self.n_qubits}/'
         os.makedirs(self.folder_name, exist_ok = True)
         angle_names = self.angle_names_string()
         
@@ -168,32 +183,32 @@ class Bayesian_optimization():
                           'time_qaoa', 
                           'time_opt_kernel', 
                           'time_step',
-                          #'doppler_detune',
-                          #'actual_pulse_parameters',
-                          #'bad_atoms',
-                          #'final_state'
+                          'doppler_detune',
+                          'bad_atoms',
+                          'sampled_state'
                           ]
         self.data_header = " ".join(["{:>7} ".format(i) for i in self.data_names])
         
-        self.info_file_name = self.folder_name + self.file_name + '_info.txt'
-        with open(self.info_file_name, 'w') as f:
-            f.write('BAYESIAN OPTIMIZATION of QAOA \n\n')
-            self.qaoa.print_info_problem(f)
+        if self.verbose_==2:
+            self.info_file_name = self.folder_name + self.file_name + '_info.txt'
+            with open(self.info_file_name, 'w') as f:
+                f.write('BAYESIAN OPTIMIZATION of QAOA \n\n')
+                self.qaoa.print_info_problem(f)
             
-            f.write('QAOA PARAMETERS')
-            f.write('\n-------------\n')
-            self.qaoa.print_info_qaoa(f)
+                f.write('QAOA PARAMETERS')
+                f.write('\n-------------\n')
+                self.qaoa.print_info_qaoa(f)
             
-            f.write('\nGAUSSIAN PROCESS PARAMETERS')
-            f.write('\n-------------\n')
-            self.gp.print_info(f)
+                f.write('\nGAUSSIAN PROCESS PARAMETERS')
+                f.write('\n-------------\n')
+                self.gp.print_info(f)
             
-            f.write('\nBAYESIAN OPT PARAMETERS')
-            f.write('\n-------------\n')
-            f.write(f'Nwarmup points: {self.nwarmup} \n')
-            f.write(f'Ntraining points: {self.nbayes}\n')
-            f.write('FILE.DAT PARAMETERS:\n')
-            print(self.data_names, file = f)
+                f.write('\nBAYESIAN OPT PARAMETERS')
+                f.write('\n-------------\n')
+                f.write(f'Nwarmup points: {self.nwarmup} \n')
+                f.write(f'Ntraining points: {self.nbayes}\n')
+                f.write('FILE.DAT PARAMETERS:\n')
+                print(self.data_names, file = f)
                
     def init_training(self):
         '''Selects self.nwarmup random points and fits the GP to them and starts
@@ -220,6 +235,7 @@ class Bayesian_optimization():
         fidelity_best = np.max([data_train[i]['fidelity_sampled'] for i in range(len(X_train))])
         solution_ratio_best = np.max([data_train[i]['solution_ratio'] for i in range(len(X_train))])
         gs_en = self.qaoa.gs_en
+       
         for i, x in enumerate(X_train):
             self.data_.append(
                               (i +1,
@@ -242,10 +258,9 @@ class Bayesian_optimization():
                                 kernel_params[1], 
                                 kernel_params[2],
                                 0, 0, 0, 0, 0, 0, 0,
-                                #data_train[i]['doppler_detune'],
-                                #data_train[i]['actual_pulse_parameters'],
-                                #data_train[i]['bad_atoms'],
-                                #data_train[i]['final_state']
+                                data_train[i]['doppler_detune'],
+                                data_train[i]['bad_atoms'],
+                                data_train[i]['sampled_state']
                                 )
                              )
             self.simplified_data.append([i, 
@@ -257,13 +272,13 @@ class Bayesian_optimization():
         self.data_file_name = self.file_name + '.dat'
         
         
-        df_simplified = pd.DataFrame(data = self.simplified_data, columns = ['ITER', 'POINT', '(E - E0)/E0', 'FID', 'ratio'])
-        df_simplified.to_csv(self.folder_name + self.file_name + '_simplified.dat')
-            
-        #df = pd.DataFrame(data = self.data_, columns = self.data_names)
-        #df.to_pickle(
-        #            self.folder_name + self.file_name, 
-        #            )
+        # df_simplified = pd.DataFrame(data = self.simplified_data, columns = ['ITER', 'POINT', '(E - E0)/E0', 'FID', 'ratio'])
+#         df_simplified.to_csv(self.folder_name + self.file_name + '_simplified.dat')
+#             
+        df = pd.DataFrame(data = self.data_, columns = self.data_names)
+        df.to_csv(
+                   self.folder_name + self.file_name + '.dat'
+                   )
                
     def acq_func(self, x):
         '''Calculate the acquisition function for the BO. Most costly part of
@@ -300,20 +315,34 @@ class Bayesian_optimization():
             samples.append(Xi.tolist())
             acqfunvalues.append(self.acq_func(Xi, 1)[0])
 
+        # No lower limit on constr_fun
+        lb = 100*self.depth*2
+        
+        # Upper limit on constr_fun
+        ub = 4000 - Q_DEVICE_PARAMS['first_pulse_duration']
+        
+        constr = optimize.LinearConstraint([[1]*self.depth*2], lb, ub)
+        
+        if self.depth < 3:
+            DE_BOUNDS = self.gp.angles_bounds
+        else:
+            DE_BOUNDS = bounds = [(100,1000), (100,1000)]*self.depth
+        
         repeat = True
         with DifferentialEvolutionSolver(self.acq_func_maximize,
-                                         bounds = [(0,1), (0,1)]*self.depth,
+                                         bounds = DE_BOUNDS, ##this bounds are ignored but need to be passed to the optimizer],
                                          callback = None,
                                          maxiter = 100*self.depth,
                                          popsize = 15,
                                          tol = .001,
                                          dist_tol = DEFAULT_PARAMS['distance_conv_tol'],
+                                         constraints=constr,
                                          seed = DEFAULT_PARAMS['seed']
                                          ) as diff_evol:
             results,average_norm_distance_vectors, std_population_energy, conv_flag = diff_evol.solve()
             next_point = results.x
         
-            next_point = self.gp.scale_up(next_point)
+            #next_point = self.gp.scale_up(next_point)
                 
         return next_point, results.nit, average_norm_distance_vectors, std_population_energy
 
@@ -407,37 +436,37 @@ class Bayesian_optimization():
                          qaoa_time, 
                          kernel_time, 
                          step_time,
-                         #qaoa_results['doppler_detune'],
-                         #qaoa_results['actual_pulse_parameters'],
-                         #qaoa_results['bad_atoms'],
-                         #qaoa_results['final_state']
+                         qaoa_results['doppler_detune'],
+                         qaoa_results['bad_atoms'],
+                         qaoa_results['sampled_state']
                          )
                         )
-            with open(self.info_file_name, 'a') as f:
-                f.write(f'iteration: {i +1}/{self.nbayes}  {next_point}'
-                        f' (E - E_0)/E_0: {1 - y_next_point/self.qaoa.solution_energy}'
-                        f' en: {y_next_point}'
-                         ' fid: {}\n'.format(qaoa_results['fidelity_sampled']))
-                        
             print(f'iteration: {i +1}/{self.nbayes}  {next_point}'
                     f' (E - E_0)/E_0: {1 - y_next_point/self.qaoa.solution_energy}'
-                    ' en: {}, fid: {}, ratio: {}'.format(y_next_point, qaoa_results['fidelity_sampled'], qaoa_results['solution_ratio'])
+                    ' en: {}, fid: {}, ratio: {}'.format(y_next_point, 
+                                                         qaoa_results['fidelity_sampled'], 
+                                                         qaoa_results['solution_ratio'])
                     )
                     
-            
-                    
+            if self.verbose_==2:
+                with open(self.info_file_name, 'a') as f:
+                    f.write(f'iteration: {i +1}/{self.nbayes}  {next_point}'
+                            f' (E - E_0)/E_0: {1 - y_next_point/self.qaoa.solution_energy}'
+                            f' en: {y_next_point}'
+                             ' fid: {}\n'.format(qaoa_results['fidelity_sampled']))
+                            
             self.data_.append(new_data)
             self.simplified_data.append([i, 
                                next_point, 
                                1 - y_next_point/self.qaoa.solution_energy,
                                qaoa_results['fidelity_sampled'],
                                qaoa_results['solution_ratio']])
-            df_simplified = pd.DataFrame(data = self.simplified_data, columns = ['ITER', 'POINT', '(E - E0)/E0', 'FID', 'ratio'])
-            df_simplified.to_csv(self.folder_name + self.file_name + '_simplified.dat')
-            #df = pd.DataFrame(data = self.data_, columns = self.data_names)
-            #df.to_pickle(
-            #            self.folder_name + self.file_name,
-            #            )
+            # df_simplified = pd.DataFrame(data = self.simplified_data, columns = ['ITER', 'POINT', '(E - E0)/E0', 'FID', 'ratio'])
+#             df_simplified.to_csv(self.folder_name + self.file_name + '_simplified.dat')
+            df = pd.DataFrame(data = self.data_, columns = self.data_names)
+            df.to_csv(
+                       self.folder_name + self.file_name + '.dat',
+                       )
             
         best_x, best_y, where = self.gp.get_best_point()
         self.data_.append(self.data_[where])

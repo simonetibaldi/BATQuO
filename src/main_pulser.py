@@ -20,7 +20,7 @@ depth = args.p
 nwarmup = args.nwarmup
 nbayes = args.nbayes
 quantum_noise =  args.quantum_noise
-type_of_graph = args.type_of_graph
+n_qubits = args.n_qubits
 lattice_spacing = args.lattice_spacing
 verbose_ = args.verbose
 kernel_choice = args.kernel
@@ -32,7 +32,7 @@ random.seed(seed)
 
 ####### CREATE BAYES OPT INSTANCE ########
 bo = Bayesian_optimization(depth,
-                           type_of_graph,
+                           n_qubits,
                            lattice_spacing,
                            quantum_noise,
                            nwarmup,

@@ -29,7 +29,7 @@ class qaoa_pulser(object):
     def __init__(self, 
                  depth, 
                  angles_bounds,
-                 type_of_graph, 
+                 n_qubits, 
                  lattice_spacing, 
                  shots,
                  discard_percentage,
@@ -53,11 +53,12 @@ class qaoa_pulser(object):
         
         self.rydberg_radius = self.Fresnel.rydberg_blockade_radius(self.omega)
         self.lattice_spacing = lattice_spacing
-        self.U = [] # it is a list because two qubits in rydberg 
-                    # interaction might be closer than others
+        # self.U = [] # it is a list because two qubits in rydberg 
+#                     # interaction might be closer than others
+        self.U = 55 #settato da me perche non ci interessa adesso
         self.angles_bounds = angles_bounds
         self.depth = depth
-        self.G, self.qubits_dict = self.generate_graph(type_of_graph)
+        self.G, self.qubits_dict = self.generate_graph(n_qubits)
         self.solution, self.solution_energy = self.classical_solution()
         self.Nqubit = len(self.G)
         self.gs_en, self.gs_state, self.deg, self.H = self.calculate_physical_gs()
@@ -143,7 +144,7 @@ class qaoa_pulser(object):
         return self.lightshift_function(omega_on) \
                 - self.lightshift_function(omega_off)
         
-    def generate_graph(self, type_of_graph): 
+    def generate_graph(self, n_qubits): 
         '''
         Creates a networkx graph from the relative positions between qubits
         Parameters: positions of qubits in micrometers
@@ -152,118 +153,150 @@ class qaoa_pulser(object):
         a = self.lattice_spacing
         N_max_atoms = 11
         trap_layout = TriangularLatticeLayout(2*N_max_atoms,spacing=a)
-        if type_of_graph == 'diamond':
-            pos_ =[
-                  [0, 0], 
-                  [a, 0], 
-                  [3/2 * a, np.sqrt(3)/2 * a], 
-                  [3/2 * a, -np.sqrt(3)/2 * a], 
-                  [2 * a, 0], 
-                  [3 * a, 0]
-                  ]
-            self.trap_list = [5,10,14,13,16,20]
-        elif type_of_graph == 'butterfly':
-            pos_ = [
-                   [0, 0],
-                   [0, a],
-                   [0, a * 2],
-                   [np.sqrt(3) * 1/2 * a, 1/2 * a],
-                   [np.sqrt(3) * 1/2 * a, 3/2 * a],
-                   [np.sqrt(3) * a, a],
-                   [np.sqrt(3) * 3/2 * a, 1/2 * a],
-                   [np.sqrt(3) * 3/2 * a, 3/2 * a],
-                   [np.sqrt(3) * 2 * a, 0],
-                   [np.sqrt(3) * 2 * a, a],
-                   [np.sqrt(3) * 2 * a, a * 2]
-            ]
-            self.trap_list = [1,3,6,5,8,10,13,16,15,18,20]
-        elif type_of_graph == 'thirteen':
-            pos_ = [
-                   [0, 0],
-                   [0, a],
-                   [0, a * 2],
-                   [np.sqrt(3) * 1/2 * a, 1/2 * a],
-                   [np.sqrt(3) * 1/2 * a, 3/2 * a],
-                   [np.sqrt(3) * a, a],
-                   [np.sqrt(3) * a, 2 * a],
-                   [np.sqrt(3) * a, 3 * a],
-                   [np.sqrt(3) * 3/2 * a, 1/2 * a],
-                   [np.sqrt(3) * 3/2 * a, 3/2 * a],
-                   [np.sqrt(3) * 2 * a, 0],
-                   [np.sqrt(3) * 2 * a, a],
-                   [np.sqrt(3) * 2 * a, a * 2]
-            ]
-        elif type_of_graph == 'nine_qubits':
-             pos_ = [
-                   [0, 0],
-                   [0, a * 2],
-                   [np.sqrt(3) * 1/2 * a, 1/2 * a],
-                   [np.sqrt(3) * 1/2 * a, 3/2 * a],
-                   [np.sqrt(3) * a, a],
-                   [np.sqrt(3) * 3/2 * a, 1/2 * a],
-                   [np.sqrt(3) * 3/2 * a, 3/2 * a],
-                   [np.sqrt(3) * 2 * a, 0],
-                   [np.sqrt(3) * 2 * a, a * 2]
-            ]
-            
-        elif type_of_graph == 'grid':
-            pos_ = [ 
-                    [0, 0],
-                    [a, 0],
-                    [a * 2, 0],
-                    [a * 3, 0],
-                    [a / 2, np.sqrt(3) * 1/2 * a],
-                    [3/2 * a, np.sqrt(3) * 1/2 * a],
-                    [5/2 * a, np.sqrt(3) * 1/2 * a],
-                    [7/2 * a, np.sqrt(3) * 1/2 * a],
-                    [a, np.sqrt(3) * a],
-                    [2 * a, np.sqrt(3) * a],
-                    [3 * a, np.sqrt(3) * a],
-                    [4 * a, np.sqrt(3) * a]
-                    ]
-        elif type_of_graph == 'twelve':
-            pos_ = [
-                    [a/2, 0],
-                    [-1*a/2, 0],
-                    [-1*3/2*a,0],
-                    [a, np.sqrt(3)/2*a],
-                    [2*a, np.sqrt(3)/2*a],
-                    [-1*a, np.sqrt(3)/2*a],
-                    [-2*a, np.sqrt(3)/2*a],
-                    [a/2, np.sqrt(3)*a],
-                    [-5/2 * a, np.sqrt(3)*a],
-                    [-a, (-1)*np.sqrt(3)/2*a],
-                    [a,(-1)*np.sqrt(3)/2*a],
-                    [3/2*a, (-1)*np.sqrt(3)*a]
-                    ]
-            
-        else:
-            print('type of graph not supported. Supported names are'
+        trap_layout = list(self.Fresnel.calibrated_register_layouts.values())[0]
+        
+        if n_qubits == 4:
+            self.trap_list = [4, 0, 7, 2]
+            edges = [(0, 1), (0, 2), (0, 3), (1, 3)]
+        elif n_qubits == 5:
+            self.trap_list = [7, 5, 8, 4, 2]
+            edges = [(0, 3), (1, 2), (1, 4), (2, 3), (2, 4), (3, 4)]
+        elif n_qubits == 6:
+            self.trap_list = [5,13,17,18,22,31]
+            edges = [[0, 1], [1, 2], [1, 3], [1, 4], [2, 4], [3, 4], [4, 5]]
+        elif n_qubits == 7:
+            self.trap_list = [8, 0, 7, 9, 4, 1, 5]
+            edges = [(0, 4), (0, 6), (1, 4), (1, 5), (2, 4), (2, 5), (3, 6), (4, 5)]
+        elif n_qubits == 8:
+            self.trap_list = [2, 11, 4, 0, 9, 1, 5, 7]
+            edges = [(0, 2), (0, 3), (0, 6), (1, 7), (2, 3), (2, 5), (2, 7), 
+                     (3, 5), (4, 6), (5, 7)]
+        elif n_qubits == 9:
+            self.trap_list = [3, 16, 8, 15, 11, 12, 13, 17, 5]
+            edges = [(0, 4), (1, 4), (1, 5), (2, 5), (2, 6), (2, 7), (2, 8), 
+                     (3, 4), (5, 7), (6, 7), (6, 8)]
+        elif n_qubits == 10:
+            self.trap_list = [13, 7, 4, 18, 5, 9, 8, 11, 6, 16]
+            edges = [(0, 3), (0, 4), (0, 5), (0, 6), (1, 2), (1, 7), (1, 9), 
+                     (2, 6), (3, 5), (4, 5), (4, 6), (7, 8), (7, 9)]
+        elif n_qubits == 11:
+            self.trap_list = [1,3,6,7,11,16,21,25,26,30,34]
+            edges = [[0, 1], [0, 3], [1, 2], [1, 3], [1, 4], [2, 4], [3, 4], 
+                     [3, 5], [4, 5], [5, 6], [5, 7], [6, 7], [6, 8], [6, 9], 
+                     [7, 9], [7, 10], [8, 9], [9, 10]]
+        if n_qubits not in range(4,12):
+            print('ERROR: type of graph not supported. Supported names are'
                     'chair, butterfly, nine_qubits, grid, twelve')
+        
+        # if n_qubits == 'diamond':
+#             pos_ =[
+#                   [0, 0], 
+#                   [a, 0], 
+#                   [3/2 * a, np.sqrt(3)/2 * a], 
+#                   [3/2 * a, -np.sqrt(3)/2 * a], 
+#                   [2 * a, 0], 
+#                   [3 * a, 0]
+#                   ]
+#             self.trap_list = [5,10,14,13,16,20]
+#         elif n_qubits == 'butterfly':
+#             pos_ = [
+#                    [0, 0],
+#                    [0, a],
+#                    [0, a * 2],
+#                    [np.sqrt(3) * 1/2 * a, 1/2 * a],
+#                    [np.sqrt(3) * 1/2 * a, 3/2 * a],
+#                    [np.sqrt(3) * a, a],
+#                    [np.sqrt(3) * 3/2 * a, 1/2 * a],
+#                    [np.sqrt(3) * 3/2 * a, 3/2 * a],
+#                    [np.sqrt(3) * 2 * a, 0],
+#                    [np.sqrt(3) * 2 * a, a],
+#                    [np.sqrt(3) * 2 * a, a * 2]
+#             ]
+#             self.trap_list = [1,3,6,5,8,10,13,16,15,18,20]
+#         elif n_qubits == 'thirteen':
+#             pos_ = [
+#                    [0, 0],
+#                    [0, a],
+#                    [0, a * 2],
+#                    [np.sqrt(3) * 1/2 * a, 1/2 * a],
+#                    [np.sqrt(3) * 1/2 * a, 3/2 * a],
+#                    [np.sqrt(3) * a, a],
+#                    [np.sqrt(3) * a, 2 * a],
+#                    [np.sqrt(3) * a, 3 * a],
+#                    [np.sqrt(3) * 3/2 * a, 1/2 * a],
+#                    [np.sqrt(3) * 3/2 * a, 3/2 * a],
+#                    [np.sqrt(3) * 2 * a, 0],
+#                    [np.sqrt(3) * 2 * a, a],
+#                    [np.sqrt(3) * 2 * a, a * 2]
+#             ]
+#         elif n_qubits == 'nine_qubits':
+#              pos_ = [
+#                    [0, 0],
+#                    [0, a * 2],
+#                    [np.sqrt(3) * 1/2 * a, 1/2 * a],
+#                    [np.sqrt(3) * 1/2 * a, 3/2 * a],
+#                    [np.sqrt(3) * a, a],
+#                    [np.sqrt(3) * 3/2 * a, 1/2 * a],
+#                    [np.sqrt(3) * 3/2 * a, 3/2 * a],
+#                    [np.sqrt(3) * 2 * a, 0],
+#                    [np.sqrt(3) * 2 * a, a * 2]
+#             ]
+#             
+#         elif n_qubits == 'grid':
+#             pos_ = [ 
+#                     [0, 0],
+#                     [a, 0],
+#                     [a * 2, 0],
+#                     [a * 3, 0],
+#                     [a / 2, np.sqrt(3) * 1/2 * a],
+#                     [3/2 * a, np.sqrt(3) * 1/2 * a],
+#                     [5/2 * a, np.sqrt(3) * 1/2 * a],
+#                     [7/2 * a, np.sqrt(3) * 1/2 * a],
+#                     [a, np.sqrt(3) * a],
+#                     [2 * a, np.sqrt(3) * a],
+#                     [3 * a, np.sqrt(3) * a],
+#                     [4 * a, np.sqrt(3) * a]
+#                     ]
+#         elif n_qubits == 'twelve':
+#             pos_ = [
+#                     [a/2, 0],
+#                     [-1*a/2, 0],
+#                     [-1*3/2*a,0],
+#                     [a, np.sqrt(3)/2*a],
+#                     [2*a, np.sqrt(3)/2*a],
+#                     [-1*a, np.sqrt(3)/2*a],
+#                     [-2*a, np.sqrt(3)/2*a],
+#                     [a/2, np.sqrt(3)*a],
+#                     [-5/2 * a, np.sqrt(3)*a],
+#                     [-a, (-1)*np.sqrt(3)/2*a],
+#                     [a,(-1)*np.sqrt(3)/2*a],
+#                     [3/2*a, (-1)*np.sqrt(3)*a]
+#                     ]
+            
         
         self.reg = trap_layout.define_register(*self.trap_list)
         G = nx.Graph()
-        edges=[]
-        distances = []
-        for n in range(len(pos_)-1):
-            for m in range(n+1, len(pos_)):
-                pwd = (
-                         (pos_[m][0]-pos_[n][0])**2
-                        +(pos_[m][1]-pos_[n][1])**2)**0.5
-                distances.append(pwd)
-                if pwd < self.rydberg_radius:
-                    # Below rbr, vertices are connected
-                    edges.append([n,m]) 
-                    #And the interaction is given by C_6/(h*d^6)
-                    self.U.append(self.C_6_over_h/(pwd**6)) 
-        G.add_nodes_from(range(len(pos_)))
+#         edges=[]
+#         distances = []
+#         for n in range(len(pos_)-1):
+#             for m in range(n+1, len(pos_)):
+#                 pwd = (
+#                          (pos_[m][0]-pos_[n][0])**2
+#                         +(pos_[m][1]-pos_[n][1])**2)**0.5
+#                 distances.append(pwd)
+#                 if pwd < self.rydberg_radius:
+#                     # Below rbr, vertices are connected
+#                     edges.append([n,m]) 
+#                     #And the interaction is given by C_6/(h*d^6)
+#                     self.U.append(self.C_6_over_h/(pwd**6)) 
+        G.add_nodes_from(range(n_qubits))
         G.add_edges_from(edges)
         print('\n###### CREATED GRAPH ######\n')
         print(G.nodes, G.edges)
         print('Rydberg Radius: ', self.rydberg_radius)
         print('Lattice spacing: ', a)
         
-        return G, dict(enumerate(pos_))
+        return G, dict(enumerate(self.trap_list))
         
     def classical_solution(self):
         '''
@@ -280,7 +313,8 @@ class qaoa_pulser(object):
             single_string = "".join(string_configuration)
             results[single_string] = self.get_cost_string(string_configuration)
         
-        d = dict((k, v) for k, v in results.items() if v == np.min(list(results.values())))
+        en = np.min(list(results.values()))
+        d = dict((k, v) for k, v in results.items() if v == en)
         en = list(d.values())[0]
         
         #sort the dictionary
@@ -295,7 +329,7 @@ class qaoa_pulser(object):
         print('Energy distribution')
         print(df)
         
-        
+        print(d)
         return d, en
         
         
@@ -366,7 +400,8 @@ class qaoa_pulser(object):
             H -= delta * ni_list[n]
             
         for i, edge in enumerate(self.G.edges):
-            H +=  self.U[i]*ni_list[edge[0]]*ni_list[edge[1]]
+            #H +=  self.U[i]*ni_list[edge[0]]*ni_list[edge[1]]
+            H +=  self.U*ni_list[edge[0]]*ni_list[edge[1]]
         energies, eigenstates = H.eigenstates(sort = 'low')
         _, degeneracies = np.unique(energies, return_counts = True)
         degeneracy = degeneracies[0]
@@ -388,8 +423,8 @@ class qaoa_pulser(object):
         print('\n##### QAOA HAMILTONIAN #######')
         print('H = - \u03b4 \u03A3 Z_i + U \u03A3 Z_i Z_j\n')
         print('Mixing: \u03A9 \u03A3 X_i\n')
-        print('\u03b4: ', self.delta, '\n\u03A9: ', self.omega, '\nU: ', self.U[0])
-        print('Rydberg condition U/\u03A9: ', self.U[0]/self.omega)
+        print('\u03b4: ', self.delta, '\n\u03A9: ', self.omega, '\nU: ', self.U)
+        print('Rydberg condition U/\u03A9: ', self.U/self.omega)
         print(f'Ryd radius: {self.rydberg_radius}')
         print(f'Lattice spacing: {self.lattice_spacing}')
         print(f'coeff_hbar: {self.C_6_over_h}')

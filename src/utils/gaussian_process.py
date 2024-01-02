@@ -170,9 +170,9 @@ class MyGaussianProcessRegressor(GaussianProcessRegressor):
         ---------
         new_point, y_new_point: either list or a single new point with their/its energy
         '''
-        new_point = self.scale_down(new_point)
+        #new_point = self.scale_down(new_point)
 
-        if isinstance(new_point[0], float): #check if its only one point
+        if isinstance(new_point[0], float) or isinstance(new_point[0], int): #check if its only one point
             self.X.append(new_point)
             self.Y.append(y_new_point)
             if y_new_point < self.y_best:
@@ -243,12 +243,14 @@ class MyGaussianProcessRegressor(GaussianProcessRegressor):
 
     def get_best_point(self):
         '''Return the current best point with its energy and position'''
-        x_best = self.scale_up(self.x_best)
+        #x_best = self.scale_up(self.x_best)
+        x_best = self.x_best
         where = np.argwhere(self.y_best == np.array(self.Y))
         return x_best, self.y_best, where[0,0]
 
     def get_X(self):
-        return self.scale_up(self.X)
+        #return self.scale_up(self.X)
+        return self.X
           
     def get_covariance_matrix(self):
         K = self.kernel_(self.X)
